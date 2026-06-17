@@ -72,9 +72,7 @@
 
     document.querySelectorAll('.dcg-expressionitem.dcg-mathitem').forEach(item => {
       const exprId = item.getAttribute('expr-id');
-      const wrappedVal = item.querySelector('.dcg-evaluation-view__wrapped-value');
-      const evalNum = item.querySelector('.dcg-evaluation-number');
-      if (!wrappedVal || !evalNum || !exprId) return;
+      if (!exprId) return;
 
       const expr = exprMap[exprId];
       if (!expr?.latex) return;
@@ -82,14 +80,26 @@
       const result = getCasResult(expr.latex);
       if (!result) return;
 
-      wrappedVal.style.visibility = 'hidden';
-      wrappedVal.style.position = 'absolute';
-      hidden.set(exprId, wrappedVal);
+      const wrappedVal = item.querySelector('.dcg-evaluation-view__wrapped-value');
+      const evalNum = item.querySelector('.dcg-evaluation-number');
 
-      const span = document.createElement('span');
-      span.className = 'cas-exact-value';
-      span.textContent = result;
-      wrappedVal.parentNode.insertBefore(span, wrappedVal);
+      if (wrappedVal && evalNum) {
+        // Expression has a Desmos numeric result — replace it
+        wrappedVal.style.visibility = 'hidden';
+        wrappedVal.style.position = 'absolute';
+        hidden.set(exprId, wrappedVal);
+        const span = document.createElement('span');
+        span.className = 'cas-exact-value';
+        span.textContent = result;
+        wrappedVal.parentNode.insertBefore(span, wrappedVal);
+      } else {
+        // Symbolic expression with no Desmos value box — append result row
+        const row = document.createElement('div');
+        row.className = 'cas-exact-value cas-symbolic-row';
+        row.textContent = '= ' + result;
+        const container = item.querySelector('.dcg-fade-container');
+        if (container) container.appendChild(row);
+      }
     });
     exactMode = true;
   }

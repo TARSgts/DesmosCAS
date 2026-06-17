@@ -9,3 +9,13 @@
   padding: 3px 5px 1px;
   display: inline-block;
 }
+
+.cas-symbolic-row {
+  display: block;
+  text-align: right;
+  padding: 2px 8px 4px;
+  margin-top: -2px;
+  background: none;
+  border: none;
+  border-radius: 0;
+}
