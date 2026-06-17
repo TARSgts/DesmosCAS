@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Desmos CAS",
+  "version": "1.0",
+  "description": "Adds symbolic CAS capabilities to Desmos",
+  "content_scripts": [
+    {
+      "matches": ["*://*.desmos.com/*"],
+      "js": ["loader.js"],
+      "css": ["panel.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["nerdamer.min.js", "cas.js"],
+      "matches": ["*://*.desmos.com/*"]
+    }
+  ]
+}

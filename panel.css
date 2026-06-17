@@ -1,0 +1,11 @@
+.cas-exact-value {
+  font-family: arial, sans-serif;
+  font-size: 15.2px;
+  font-weight: 400;
+  color: rgb(0, 0, 0);
+  background-color: rgba(0, 0, 0, 0.04);
+  border: 0.8px solid rgba(206, 206, 206, 0.8);
+  border-radius: 4px;
+  padding: 3px 5px 1px;
+  display: inline-block;
+}
