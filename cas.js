@@ -40,6 +40,7 @@
     s = s.replace(new RegExp(`([a-zA-Z0-9)])\\s*(${fns})\\b`, 'g'), '$1*$2');
     s = s.replace(/(\d)\s*([a-zA-Z(])/g, '$1*$2');
     s = s.replace(/\)\s*\(/g, ')*('); s = s.replace(/\)\s*([a-zA-Z])/g, ')*$1');
+    s = s.replace(/\\+/g, ''); // strip any remaining stray backslashes
     return s.trim();
   }
 
@@ -96,7 +97,7 @@
         // Symbolic expression with no Desmos value box — append result row
         const row = document.createElement('div');
         row.className = 'cas-exact-value cas-symbolic-row';
-        row.textContent = '= ' + result;
+        row.innerHTML = '<span class="cas-sym-eq">=</span><span class="cas-sym-val" title="' + result + '">' + result + '</span>';
         const container = item.querySelector('.dcg-fade-container');
         if (container) container.appendChild(row);
       }

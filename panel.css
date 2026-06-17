@@ -11,11 +11,32 @@
 }
 
 .cas-symbolic-row {
-  display: block;
-  text-align: right;
-  padding: 2px 8px 4px;
-  margin-top: -2px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 8px 6px;
+  gap: 4px;
+  font-family: arial, sans-serif;
+  font-size: 13px;
+  color: #000;
   background: none;
   border: none;
   border-radius: 0;
+  overflow: hidden;
+}
+
+.cas-symbolic-row .cas-sym-eq {
+  flex-shrink: 0;
+  color: #555;
+}
+
+.cas-symbolic-row .cas-sym-val {
+  background: rgba(0,0,0,0.04);
+  border: 0.8px solid rgba(206,206,206,0.8);
+  border-radius: 4px;
+  padding: 3px 5px 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
