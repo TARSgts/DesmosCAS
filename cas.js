@@ -9,8 +9,10 @@
     s = s.replace(
       /\\int_(\{[^}]*\}|\\[a-zA-Z]+|[^\\^{])\^(\{[^}]*\}|\\[a-zA-Z]+|[^\\{])([\s\S]*?)(?:\\[,!;\: ]\s*)?d([a-zA-Z])\b/g,
       (_, lo, hi, body, v) => {
-        const l = lo.startsWith('{') ? lo.slice(1,-1) : lo;
-        const h = hi.startsWith('{') ? hi.slice(1,-1) : hi;
+        const l = lo.startsWith('{') ? lo.slice(1,-1).trim() : lo.trim();
+        const h = hi.startsWith('{') ? hi.slice(1,-1).trim() : hi.trim();
+        // Empty bounds = indefinite integral
+        if (!l && !h) return `integrate(${toNerd(body.trim())},${v})`;
         const numBound = b => toNerd(b).replace(/\bpi\b/g, '3.14159265358979');
         return `defint(${toNerd(body.trim())},${numBound(l)},${numBound(h)},${v})`;
       });
@@ -27,6 +29,8 @@
       (_, fn, exp) => `${fn}_POW_${exp}_`);
     s = s.replace(/\\(sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|sinh|cosh|tanh)/g, '$1');
     s = s.replace(/([a-z]+)_POW_([^_]+)_\s*\(([^)]*)\)/g, '$1($3)^($2)');
+    // Handle \sin^{3}x (no parens around arg — single char or word)
+    s = s.replace(/([a-z]+)_POW_([^_]+)_([a-zA-Z])/g, '$1($3)^($2)');
     s = s.replace(/\\ln/g, 'log'); s = s.replace(/\\pi/g, 'pi');
     s = s.replace(/\\left\s*[\(\[]/g, '('); s = s.replace(/\\right\s*[\)\]]/g, ')');
     s = s.replace(/\\cdot|\\times/g, '*'); s = s.replace(/\\[,!;\: ]/g, '');
