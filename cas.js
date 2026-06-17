@@ -22,7 +22,11 @@
       (_, n, d) => `(${toNerd(n)})/(${toNerd(d)})`);
     s = s.replace(/\\sqrt\{([^}]*)\}/g, (_, x) => `sqrt(${toNerd(x)})`);
     s = s.replace(/\\sqrt\s*(\w)/g, (_, x) => `sqrt(${x})`);
+    // Handle \trig^{n}(x) → trig(x)^n before stripping backslashes
+    s = s.replace(/\\(sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|sinh|cosh|tanh)\^\{([^}]*)\}/g,
+      (_, fn, exp) => `${fn}_POW_${exp}_`);
     s = s.replace(/\\(sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|sinh|cosh|tanh)/g, '$1');
+    s = s.replace(/([a-z]+)_POW_([^_]+)_\s*\(([^)]*)\)/g, '$1($3)^($2)');
     s = s.replace(/\\ln/g, 'log'); s = s.replace(/\\pi/g, 'pi');
     s = s.replace(/\\left\s*[\(\[]/g, '('); s = s.replace(/\\right\s*[\)\]]/g, ')');
     s = s.replace(/\\cdot|\\times/g, '*'); s = s.replace(/\\[,!;\: ]/g, '');
@@ -48,6 +52,10 @@
       if (out.includes('^(-1)')) {
         try { out = nerdamer('simplify(' + expr + ')').toString(); } catch {}
       }
+      // Simplify known atan values (atan(1)=pi/4, etc.)
+      out = out.replace(/\batan\(1\)/g, 'pi/4')
+               .replace(/\batan\(sqrt\(3\)\)/g, 'pi/3')
+               .replace(/\batan\(1\/sqrt\(3\)\)/g, 'pi/6');
       const bad = /^-?\d+\.\d+([eE][+-]?\d+)?$/.test(out) || out.includes('?') || out === expr;
       return bad ? null : out;
     } catch { return null; }
