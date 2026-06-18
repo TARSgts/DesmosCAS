@@ -62,18 +62,12 @@ import re as _re
 def cas_compute(latex_str):
     try:
         expr = parse_latex(latex_str)
-        # parse_latex yields plain symbols for e and pi — map to the constants
         expr = expr.subs(Symbol('e'), E).subs(Symbol('pi'), pi)
         result = simplify(expr.doit())
         s = str(result).replace('**', '^')
-        # Hide unevaluated integrals/derivatives and plain decimals
-        if 'Integral(' in s or 'Derivative(' in s:
-            return None
-        if _re.match(r'^-?[0-9]+\.[0-9]+$', s):
-            return None
-        return s
-    except Exception:
-        return None
+        return 'DBG[' + type(result).__name__ + ']:' + s
+    except Exception as ex:
+        return 'ERR:' + str(ex)[:140]
 `);
     _compute = (latex) => pyodide.globals.get('cas_compute')(latex);
     ready = true;
