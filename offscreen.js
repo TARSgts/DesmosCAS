@@ -65,9 +65,8 @@ def cas_compute(latex_str):
     except Exception as ex:
         return 'PARSE_ERR:' + str(ex)[:120]
     try:
-        e_sym = Symbol('e')
-        if e_sym in expr.free_symbols:
-            expr = expr.subs(e_sym, E)
+        # parse_latex yields plain symbols for e and pi — map to the constants
+        expr = expr.subs(Symbol('e'), E).subs(Symbol('pi'), pi)
         result = expr.doit()
         result = simplify(result)
         s = str(result)
