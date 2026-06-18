@@ -70,6 +70,10 @@ def cas_compute(latex_str):
             return None
         s = str(result).replace('**', '^').replace('exp(', 'e^(')
         s = s.replace('zoo', '∞').replace('oo', '∞')  # SymPy infinity → ∞
+        # Inverse trig: SymPy's a*( -> friendlier arc*( . The '(' anchor leaves
+        # hyperbolic inverses (atanh(, asinh(, ...) untouched.
+        for fn in ('asin', 'acos', 'atan', 'acot', 'asec', 'acsc'):
+            s = s.replace(fn + '(', 'arc' + fn[1:] + '(')
         if 'Integral(' in s or 'Derivative(' in s:
             return None
         return s
