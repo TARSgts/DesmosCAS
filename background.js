@@ -32,7 +32,13 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 
   if (msg.type === 'cas_status_relay') {
     const tabId = sender.tab?.id;
-    if (tabId) chrome.tabs.sendMessage(tabId, { type: 'cas_status_push', status: lastStatus }).catch(() => {});
+    chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] }).then(ctx => {
+      if (tabId) chrome.tabs.sendMessage(tabId, {
+        type: 'cas_status_push',
+        status: lastStatus + ' | offscreenDocs=' + ctx.length
+      }).catch(() => {});
+    });
+    return true;
   }
 
   if (msg.type === 'cas_offscreen_result') {
