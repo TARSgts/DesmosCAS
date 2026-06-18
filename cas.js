@@ -50,14 +50,24 @@
     return span;
   }
 
+  // result is a LaTeX string from SymPy. Render with KaTeX; fall back to raw text.
+  function renderInto(el, tex) {
+    el.title = tex;
+    if (typeof katex !== 'undefined') {
+      try {
+        katex.render(tex, el, { throwOnError: false, displayMode: false });
+        return;
+      } catch (e) { /* fall through to text */ }
+    }
+    el.textContent = tex;
+  }
+
   function fillPlaceholder(placeholder, result) {
     placeholder.classList.remove('cas-loading');
     if (placeholder.classList.contains('cas-symbolic-row')) {
-      const val = placeholder.querySelector('.cas-sym-val');
-      val.textContent = result;
-      val.title = result;
+      renderInto(placeholder.querySelector('.cas-sym-val'), result);
     } else {
-      placeholder.textContent = result;
+      renderInto(placeholder, result);
     }
   }
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Desmos CAS",
-  "version": "2.0",
+  "version": "2.1",
   "description": "Adds symbolic CAS capabilities to Desmos via SymPy",
   "background": {
     "service_worker": "background.js"
@@ -17,7 +17,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["cas.js"],
+      "resources": ["cas.js", "katex.min.js", "katex.min.css", "fonts/*"],
       "matches": ["*://*.desmos.com/*"]
     }
   ],

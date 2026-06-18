@@ -16,8 +16,6 @@ window.addEventListener('error', (e) => {
 // Confirm offscreen.js executed
 store('offscreen_js_loaded');
 
-var INF = String.fromCharCode(0x221E); // ∞ — built from code point so no non-ASCII bytes in source
-
 // parse_latex (antlr) can't parse |...| bars, so rewrite them as sqrt((...)^2)
 function preprocess(latex) {
   let s = latex, prev;
@@ -26,19 +24,22 @@ function preprocess(latex) {
   return s;
 }
 
-function polish(s) {
+// SymPy outputs inverse trig as \operatorname{asin}; rewrite to friendlier arc-forms.
+function polishTex(s) {
   if (typeof s !== 'string') return s;
   return s
-    .replace(/\bzoo\b/g, INF)   // complex infinity
-    .replace(/\boo\b/g, INF)    // infinity (word-bounded, leaves "floor" alone)
-    .replace(/\bE\b/g, 'e')     // Euler's number -> e
-    .replace(/sqrt\(([^()]+)\^2\)/g, '|$1|'); // sqrt(x^2) -> |x| (from abs rewrite)
+    .replace(/\\operatorname\{asin\}/g, '\\arcsin')
+    .replace(/\\operatorname\{acos\}/g, '\\arccos')
+    .replace(/\\operatorname\{atan\}/g, '\\arctan')
+    .replace(/\\operatorname\{acot\}/g, '\\operatorname{arccot}')
+    .replace(/\\operatorname\{asec\}/g, '\\operatorname{arcsec}')
+    .replace(/\\operatorname\{acsc\}/g, '\\operatorname{arccsc}');
 }
 
 function compute(msg) {
   const { id, tabId, latex } = msg;
   try {
-    const result = polish(_compute(preprocess(latex)));
+    const result = polishTex(_compute(preprocess(latex)));
     chrome.runtime.sendMessage({ type: 'cas_offscreen_result', id, tabId, result: result || null }).catch(() => {});
   } catch (e) {
     chrome.runtime.sendMessage({ type: 'cas_offscreen_result', id, tabId, result: null }).catch(() => {});
@@ -95,14 +96,10 @@ def cas_compute(latex_str):
         # Keep Desmos's own display for bare floats and undefined (0/0 → nan)
         if getattr(result, 'is_Float', False) or result is S.NaN:
             return None
-        s = str(result).replace('**', '^').replace('exp(', 'e^(')
-        # Inverse trig: SymPy's a*( -> friendlier arc*( . The '(' anchor leaves
-        # hyperbolic inverses (atanh(, asinh(, ...) untouched.
-        for fn in ('asin', 'acos', 'atan', 'acot', 'asec', 'acsc'):
-            s = s.replace(fn + '(', 'arc' + fn[1:] + '(')
-        if 'Integral(' in s or 'Derivative(' in s:
+        # Hide unevaluated integrals/derivatives — let Desmos show its own value
+        if result.has(Integral) or result.has(Derivative):
             return None
-        return s
+        return latex(result)  # rendered as real math by KaTeX in the page
     except Exception:
         return None
 `);
