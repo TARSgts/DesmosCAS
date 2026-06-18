@@ -6,7 +6,7 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["offscreen"],
+  "permissions": ["offscreen", "storage"],
   "content_scripts": [
     {
       "matches": ["*://*.desmos.com/*"],

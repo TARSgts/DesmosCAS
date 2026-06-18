@@ -3,8 +3,17 @@ let ready = false;
 let _compute;
 let _status = 'starting';
 
+// Catch any top-level error (e.g. pyodide.asm.js eval failure)
+window.addEventListener('error', (e) => {
+  chrome.storage.local.set({ casStatus: 'WINDOW_ERROR:' + (e.message || '').slice(0, 200), casStatusTime: Date.now() }).catch(() => {});
+});
+// Confirm offscreen.js itself executed
+chrome.storage.local.set({ casStatus: 'offscreen_js_running:loadPyodide=' + typeof loadPyodide + ',createModule=' + typeof _createPyodideModule, casStatusTime: Date.now() }).catch(() => {});
+
 function report(stage, extra) {
   _status = stage + (extra ? ':' + extra : '');
+  // Persist to storage so it survives service-worker restarts
+  chrome.storage.local.set({ casStatus: _status, casStatusTime: Date.now() }).catch(() => {});
   chrome.runtime.sendMessage({ type: 'cas_status', status: _status }).catch(() => {});
 }
 

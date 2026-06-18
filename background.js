@@ -32,10 +32,14 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 
   if (msg.type === 'cas_status_relay') {
     const tabId = sender.tab?.id;
-    chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] }).then(ctx => {
+    Promise.all([
+      chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] }),
+      chrome.storage.local.get(['casStatus', 'casStatusTime'])
+    ]).then(([ctx, store]) => {
+      const age = store.casStatusTime ? Math.round((Date.now() - store.casStatusTime) / 1000) + 's ago' : 'never';
       if (tabId) chrome.tabs.sendMessage(tabId, {
         type: 'cas_status_push',
-        status: lastStatus + ' | offscreenDocs=' + ctx.length
+        status: 'offscreenDocs=' + ctx.length + ' | storedStatus=' + (store.casStatus || 'none') + ' (' + age + ')'
       }).catch(() => {});
     });
     return true;
