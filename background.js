@@ -10,7 +10,8 @@ async function ensureOffscreen() {
 }
 
 // On install/reload: tear down any stale offscreen and start fresh
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
+  await chrome.storage.local.set({ onInstalled: details.reason + '@' + Date.now() });
   try { await chrome.offscreen.closeDocument(); } catch (e) {}
   await chrome.storage.local.remove(['casStatus', 'casStatusTime']);
   ensureOffscreen();
@@ -34,12 +35,12 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     const tabId = sender.tab?.id;
     Promise.all([
       chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] }),
-      chrome.storage.local.get(['casStatus', 'casStatusTime'])
+      chrome.storage.local.get(['casStatus', 'casStatusTime', 'onInstalled'])
     ]).then(([ctx, store]) => {
       const age = store.casStatusTime ? Math.round((Date.now() - store.casStatusTime) / 1000) + 's ago' : 'never';
       if (tabId) chrome.tabs.sendMessage(tabId, {
         type: 'cas_status_push',
-        status: 'offscreenDocs=' + ctx.length + ' | ' + (store.casStatus || 'none') + ' (' + age + ')'
+        status: 'docs=' + ctx.length + ' | onInstalled=' + (store.onInstalled || 'NO') + ' | offscreen=' + (store.casStatus || 'none') + ' (' + age + ')'
       }).catch(() => {});
     });
     return true;
