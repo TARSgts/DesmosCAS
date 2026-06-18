@@ -51,7 +51,7 @@
       const intMatch = expr.match(/^integrate\((.+),([a-zA-Z])\)$/);
       if (intMatch) { try { out = nerdamer.integrate(intMatch[1], intMatch[2]).toString(); } catch {} }
       if (!out) out = nerdamer(expr).toString();
-      if (out.includes('^(-1)') || /[+\-].*[+\-]/.test(out)) {
+      if ((out.includes('^(-1)') || /[+\-].*[+\-]/.test(out)) && !out.includes('e^')) {
         try { const f = nerdamer('factor(' + expr + ')').toString(); if (f !== out && !f.includes('^(-1)')) out = f; } catch {}
       }
       if (out.includes('^(-1)')) {
