@@ -2,6 +2,12 @@ const queue = [];
 let ready = false;
 let _compute;
 
+function store(s) {
+  try { chrome.runtime.sendMessage({ type: 'cas_status', status: s }).catch(() => {}); } catch (e) {}
+}
+window.addEventListener('error', (e) => store('JSERR:' + (e.message || '').slice(0, 150)));
+store('offscreen_loaded');
+
 // parse_latex (antlr) can't parse |...| bars, so rewrite them as sqrt((...)^2)
 function preprocess(latex) {
   let s = latex, prev;
@@ -44,11 +50,15 @@ window.addEventListener('load', init);
 
 async function init() {
   try {
+    if (typeof loadPyodide !== 'function') { store('NO_loadPyodide'); return; }
+    store('loading_pyodide');
     const pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/' });
+    store('pyodide_ok');
     await pyodide.loadPackage(['sympy', 'micropip']);
+    store('sympy_ok');
     // parse_latex needs antlr4-python3-runtime (not bundled) — install from PyPI
     const micropip = pyodide.pyimport('micropip');
-    try { await micropip.install('antlr4-python3-runtime==4.11'); } catch (e) {}
+    try { await micropip.install('antlr4-python3-runtime==4.11'); store('antlr_ok'); } catch (e) { store('antlr_fail:' + String(e).slice(0,80)); }
     pyodide.runPython(`
 import warnings
 warnings.filterwarnings('ignore')  # silence the antlr ErrorListener notice
@@ -119,7 +129,9 @@ def cas_compute(latex_str):
         return None
 `);
     _compute = (latex) => pyodide.globals.get('cas_compute')(latex);
+    store('READY');
   } catch (e) {
+    store('INIT_FAIL:' + (e && e.message ? e.message : String(e)).slice(0, 150));
     _compute = () => null; // Pyodide failed to load — fail gracefully (queries get null)
   }
   ready = true;
