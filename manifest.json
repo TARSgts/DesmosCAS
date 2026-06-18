@@ -7,6 +7,9 @@
     "service_worker": "background.js"
   },
   "permissions": ["offscreen"],
+  "sandbox": {
+    "pages": ["sandbox.html"]
+  },
   "content_scripts": [
     {
       "matches": ["*://*.desmos.com/*"],
@@ -20,8 +23,5 @@
       "resources": ["cas.js"],
       "matches": ["*://*.desmos.com/*"]
     }
-  ],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' https://cdn.jsdelivr.net; object-src 'self'"
-  }
+  ]
 }
