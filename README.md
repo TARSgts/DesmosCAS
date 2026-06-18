@@ -36,10 +36,14 @@ Press **Alt+E** while on Desmos to toggle exact answers. The decimal approximati
 
 ## How it works
 
-- A content script (`loader.js`) injects [Nerdamer](https://nerdamer.com/) (a JavaScript CAS library) and the main script into the Desmos page context
-- The main script (`cas.js`) reads expressions from `window.Calc`, converts Desmos LaTeX to Nerdamer syntax, computes exact results, and swaps the displayed values in the DOM
-- Desmos's Content Security Policy is respected by loading scripts via `chrome-extension://` URLs rather than inline
+- A content script (`loader.js`) injects the page script (`cas.js`) into the Desmos page context, where it can read `window.Calc`
+- `cas.js` reads each expression's LaTeX and sends it, via `bridge.js`, to the extension's background service worker
+- The background worker forwards requests to an **offscreen document** (`offscreen.html` / `offscreen.js`) that runs [Pyodide](https://pyodide.org/) — Python compiled to WebAssembly — with [SymPy](https://www.sympy.org/) loaded
+- SymPy's `parse_latex` reads the Desmos LaTeX directly, evaluates it symbolically, and the exact result is pushed back to the page and injected into the DOM
+- Pyodide + SymPy (and the `antlr4-python3-runtime` needed by `parse_latex`) are fetched once from the jsDelivr CDN and cached by the browser
 
 ## Dependencies
 
-- [Nerdamer](https://nerdamer.com/) v1.1.13 — bundled (`nerdamer.min.js`)
+- [Pyodide](https://pyodide.org/) v0.26.2 — `pyodide.js` + `pyodide.asm.js` bundled; WASM and packages fetched from CDN on first run
+- [SymPy](https://www.sympy.org/) — loaded as a Pyodide package
+- `antlr4-python3-runtime` — installed via micropip for `parse_latex`
