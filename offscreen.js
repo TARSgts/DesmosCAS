@@ -1,11 +1,28 @@
-// pyodide.js + pyodide.asm.js are pre-loaded by offscreen.html
-// loadPyodide skips the dynamic CDN import since _createPyodideModule is already defined
-// WASM binary + packages are still fetched from CDN via fetch() — no CSP issue
+const queue = [];
+let ready = false;
+
+// Queue messages that arrive before Pyodide finishes loading
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type !== 'cas_offscreen') return;
+  if (!ready) { queue.push(msg); return; }
+  compute(msg);
+});
+
+let _compute;
+
+function compute(msg) {
+  const { id, tabId, latex } = msg;
+  try {
+    const result = _compute(latex);
+    chrome.runtime.sendMessage({ type: 'cas_offscreen_result', id, tabId, result: result || null }).catch(() => {});
+  } catch (e) {
+    chrome.runtime.sendMessage({ type: 'cas_offscreen_result', id, tabId, result: null }).catch(() => {});
+  }
+}
 
 async function init() {
-  let pyodide;
   try {
-    pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/' });
+    const pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/' });
     await pyodide.loadPackage(['sympy']);
     pyodide.runPython(`
 from sympy import *
@@ -30,26 +47,18 @@ def cas_compute(latex_str):
     except Exception:
         return None
 `);
+    _compute = (latex) => pyodide.globals.get('cas_compute')(latex);
+    ready = true;
+    // Drain queue
+    for (const msg of queue) compute(msg);
+    queue.length = 0;
   } catch (e) {
-    return; // silently fail — queries will get null results
+    // Pyodide failed — drain queue with null results
+    ready = true;
+    _compute = () => null;
+    for (const msg of queue) compute(msg);
+    queue.length = 0;
   }
-
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type !== 'cas_offscreen') return;
-    const { id, tabId, latex } = msg;
-    try {
-      const result = pyodide.globals.get('cas_compute')(latex);
-      chrome.runtime.sendMessage({
-        type: 'cas_offscreen_result',
-        id, tabId, result: result || null
-      }).catch(() => {});
-    } catch (e) {
-      chrome.runtime.sendMessage({
-        type: 'cas_offscreen_result',
-        id, tabId, result: null
-      }).catch(() => {});
-    }
-  });
 }
 
 init();
