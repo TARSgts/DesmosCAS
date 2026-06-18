@@ -84,11 +84,11 @@ def cas_compute(latex_str):
         # parse_latex yields plain symbols for e and pi — map to the constants
         expr = expr.subs(Symbol('e'), E).subs(Symbol('pi'), pi)
         result = simplify(expr.doit())
-        # Prefer a factored form when it's more compact, e.g. (x-1)^3
+        # Prefer a factored form for polynomials, e.g. (x-1)^3, (x-2)(x-3)
         try:
             if result.free_symbols and result.is_polynomial():
                 fac = factor(result)
-                if len(str(fac)) < len(str(result)):
+                if fac != result:  # factoring found a real factorization
                     result = fac
         except Exception:
             pass
