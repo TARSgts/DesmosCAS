@@ -16,10 +16,19 @@ window.addEventListener('error', (e) => {
 // Confirm offscreen.js executed
 store('offscreen_js_loaded');
 
+var INF = String.fromCharCode(0x221E); // ∞ — built from code point so no non-ASCII bytes in source
+function polish(s) {
+  if (typeof s !== 'string') return s;
+  return s
+    .replace(/\bzoo\b/g, INF)   // complex infinity
+    .replace(/\boo\b/g, INF)    // infinity (word-bounded, leaves "floor" alone)
+    .replace(/\bE\b/g, 'e');    // Euler's number -> e
+}
+
 function compute(msg) {
   const { id, tabId, latex } = msg;
   try {
-    const result = _compute(latex);
+    const result = polish(_compute(latex));
     chrome.runtime.sendMessage({ type: 'cas_offscreen_result', id, tabId, result: result || null }).catch(() => {});
   } catch (e) {
     chrome.runtime.sendMessage({ type: 'cas_offscreen_result', id, tabId, result: null }).catch(() => {});
@@ -65,11 +74,10 @@ def cas_compute(latex_str):
         # parse_latex yields plain symbols for e and pi — map to the constants
         expr = expr.subs(Symbol('e'), E).subs(Symbol('pi'), pi)
         result = simplify(expr.doit())
-        # Keep Desmos's own display for unsolved integrals/derivatives and bare floats
-        if getattr(result, 'is_Float', False):
+        # Keep Desmos's own display for bare floats and undefined (0/0 → nan)
+        if getattr(result, 'is_Float', False) or result is S.NaN:
             return None
         s = str(result).replace('**', '^').replace('exp(', 'e^(')
-        s = s.replace('zoo', '∞').replace('oo', '∞')  # SymPy infinity → ∞
         # Inverse trig: SymPy's a*( -> friendlier arc*( . The '(' anchor leaves
         # hyperbolic inverses (atanh(, asinh(, ...) untouched.
         for fn in ('asin', 'acos', 'atan', 'acot', 'asec', 'acsc'):
