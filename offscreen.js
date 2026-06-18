@@ -65,11 +65,11 @@ def cas_compute(latex_str):
         # parse_latex yields plain symbols for e and pi — map to the constants
         expr = expr.subs(Symbol('e'), E).subs(Symbol('pi'), pi)
         result = simplify(expr.doit())
-        s = str(result).replace('**', '^').replace('exp(', 'e^(')
-        # Hide things worth keeping Desmos's own display for:
-        if 'Integral(' in s or 'Derivative(' in s:  # SymPy couldn't solve it
+        # Keep Desmos's own display for unsolved integrals/derivatives and bare floats
+        if getattr(result, 'is_Float', False):
             return None
-        if _re.match(r'^-?[0-9]+\.[0-9]+$', s):       # ugly long float
+        s = str(result).replace('**', '^').replace('exp(', 'e^(')
+        if 'Integral(' in s or 'Derivative(' in s:
             return None
         return s
     except Exception:
