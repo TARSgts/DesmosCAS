@@ -41,6 +41,9 @@
     s = s.replace(/(\d)\s*([a-zA-Z(])/g, '$1*$2');
     s = s.replace(/\)\s*\(/g, ')*('); s = s.replace(/\)\s*([a-zA-Z])/g, ')*$1');
     s = s.replace(/\\+/g, ''); // strip any remaining stray backslashes
+    // Convert e^(...) to exp(...) so nerdamer keeps Euler's e symbolic
+    s = s.replace(/(?<![a-zA-Z\d])e\^\(([^)]*)\)/g, (_, x) => `exp(${x})`);
+    s = s.replace(/(?<![a-zA-Z\d])e\^([a-zA-Z0-9])/g, (_, x) => `exp(${x})`);
     return s.trim();
   }
 
@@ -61,7 +64,8 @@
       out = out.replace(/\batan\(1\)/g, 'pi/4')
                .replace(/\batan\(sqrt\(3\)\)/g, 'pi/3')
                .replace(/\batan\(1\/sqrt\(3\)\)/g, 'pi/6');
-      const bad = /^-?\d+\.\d+([eE][+-]?\d+)?$/.test(out) || out.includes('?') || out === expr;
+      out = out.replace(/^\*+/, '').replace(/\*+$/, '').trim();
+      const bad = /^-?\d+\.\d+([eE][+-]?\d+)?$/.test(out) || out.includes('?') || out === expr || out.includes('integrate(');
       return bad ? null : out;
     } catch { return null; }
   }
