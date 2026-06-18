@@ -33,7 +33,8 @@ function polishTex(s) {
     .replace(/\\operatorname\{atan\}/g, '\\arctan')
     .replace(/\\operatorname\{acot\}/g, '\\operatorname{arccot}')
     .replace(/\\operatorname\{asec\}/g, '\\operatorname{arcsec}')
-    .replace(/\\operatorname\{acsc\}/g, '\\operatorname{arccsc}');
+    .replace(/\\operatorname\{acsc\}/g, '\\operatorname{arccsc}')
+    .replace(/\\log\{/g, '\\ln{'); // SymPy 'log' is natural log -> display as ln
 }
 
 function compute(msg) {
