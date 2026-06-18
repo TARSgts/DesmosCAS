@@ -88,9 +88,11 @@ def cas_compute(latex_str):
                 pass
         if raw is None:
             raw = expr.doit()
-        # If a Piecewise slipped through, take its principal (first) branch.
+        # If a Piecewise slipped through, take the real-valued branch (SymPy
+        # often puts a complex branch first and the clean real form in 'otherwise').
         if isinstance(raw, Piecewise) and len(raw.args):
-            raw = raw.args[0].expr
+            real_branches = [b.expr for b in raw.args if not b.expr.has(I)]
+            raw = real_branches[-1] if real_branches else raw.args[0].expr
         # simplify() can mangle results (e.g. combine logs into ln of a giant
         # integer). Keep the evaluated form unless simplify is genuinely shorter.
         try:
