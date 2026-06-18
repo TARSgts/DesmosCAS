@@ -1,112 +1,106 @@
 (() => {
-  if (typeof nerdamer === 'undefined') return;
-
   let exactMode = false;
   const hidden = new Map(); // exprId -> wrapped-value element
 
-  function toNerd(s) {
-    s = s.trim();
-    s = s.replace(
-      /\\int_(\{[^}]*\}|\\[a-zA-Z]+|[^\\^{])\^(\{[^}]*\}|\\[a-zA-Z]+|[^\\{])([\s\S]*?)(?:\\[,!;\: ]\s*)?d([a-zA-Z])\b/g,
-      (_, lo, hi, body, v) => {
-        const l = lo.startsWith('{') ? lo.slice(1,-1).trim() : lo.trim();
-        const h = hi.startsWith('{') ? hi.slice(1,-1).trim() : hi.trim();
-        // Empty bounds = indefinite integral
-        if (!l && !h) return `integrate(${toNerd(body.trim())},${v})`;
-        const numBound = b => toNerd(b).replace(/\bpi\b/g, '3.14159265358979');
-        return `defint(${toNerd(body.trim())},${numBound(l)},${numBound(h)},${v})`;
-      });
-    s = s.replace(/\\int([\s\S]*?)(?:\\[,!;\: ]\s*)?d([a-zA-Z])\b/g,
-      (_, b, v) => `integrate(${toNerd(b.trim())},${v})`);
-    s = s.replace(/\\frac\{d\}\{d([a-zA-Z])\}\s*([\s\S]+)/g,
-      (_, v, body) => `diff(${toNerd(body.trim())},${v})`);
-    s = s.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g,
-      (_, n, d) => `(${toNerd(n)})/(${toNerd(d)})`);
-    s = s.replace(/\\sqrt\{([^}]*)\}/g, (_, x) => `sqrt(${toNerd(x)})`);
-    s = s.replace(/\\sqrt\s*(\w)/g, (_, x) => `sqrt(${x})`);
-    // Handle \trig^{n}(x) → trig(x)^n before stripping backslashes
-    s = s.replace(/\\(sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|sinh|cosh|tanh)\^\{([^}]*)\}/g,
-      (_, fn, exp) => `${fn}_POW_${exp}_`);
-    s = s.replace(/\\(sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|sinh|cosh|tanh)/g, '$1');
-    s = s.replace(/([a-z]+)_POW_([^_]+)_\s*\(([^)]*)\)/g, '$1($3)^($2)');
-    // Handle \sin^{3}x (no parens around arg — single char or word)
-    s = s.replace(/([a-z]+)_POW_([^_]+)_([a-zA-Z])/g, '$1($3)^($2)');
-    s = s.replace(/\\ln/g, 'log'); s = s.replace(/\\pi/g, 'pi');
-    s = s.replace(/\\left\s*[\(\[]/g, '('); s = s.replace(/\\right\s*[\)\]]/g, ')');
-    s = s.replace(/\\cdot|\\times/g, '*'); s = s.replace(/\\[,!;\: ]/g, '');
-    s = s.replace(/\^\{([^}]*)\}/g, (_, x) => `^(${toNerd(x)})`);
-    s = s.replace(/\{([^}]*)\}/g, (_, x) => `(${toNerd(x)})`);
-    const fns = 'sqrt|defint|integrate|diff|sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|log|abs|pi';
-    s = s.replace(new RegExp(`([a-zA-Z0-9)])\\s*(${fns})\\b`, 'g'), '$1*$2');
-    s = s.replace(/(\d)\s*([a-zA-Z(])/g, '$1*$2');
-    s = s.replace(/\)\s*\(/g, ')*('); s = s.replace(/\)\s*([a-zA-Z])/g, ')*$1');
-    s = s.replace(/\\+/g, ''); // strip any remaining stray backslashes
-    // Convert e^(...) to exp(...) so nerdamer keeps Euler's e symbolic
-    s = s.replace(/(?<![a-zA-Z\d])e\^\(([^)]*)\)/g, (_, x) => `exp(${x})`);
-    s = s.replace(/(?<![a-zA-Z\d])e\^([a-zA-Z0-9])/g, (_, x) => `exp(${x})`);
-    return s.trim();
+  function queryCAS(latex) {
+    return new Promise((resolve) => {
+      const id = Math.random().toString(36).slice(2);
+      const timer = setTimeout(() => {
+        window.removeEventListener('message', handler);
+        resolve({ result: null });
+      }, 60000);
+      function handler(e) {
+        if (e.source !== window || e.data?.type !== 'cas_result' || e.data.id !== id) return;
+        clearTimeout(timer);
+        window.removeEventListener('message', handler);
+        resolve(e.data);
+      }
+      window.addEventListener('message', handler);
+      window.postMessage({ type: 'cas_query', id, latex }, '*');
+    });
   }
 
-  function getCasResult(latex) {
-    try {
-      const expr = toNerd(latex);
-      let out;
-      const intMatch = expr.match(/^integrate\((.+),([a-zA-Z])\)$/);
-      if (intMatch) { try { out = nerdamer.integrate(intMatch[1], intMatch[2]).toString(); } catch {} }
-      if (!out) out = nerdamer(expr).toString();
-      if ((out.includes('^(-1)') || /[+\-].*[+\-]/.test(out)) && !out.includes('e^')) {
-        try { const f = nerdamer('factor(' + expr + ')').toString(); if (f !== out && !f.includes('^(-1)')) out = f; } catch {}
-      }
-      if (out.includes('^(-1)')) {
-        try { out = nerdamer('simplify(' + expr + ')').toString(); } catch {}
-      }
-      // Simplify known atan values (atan(1)=pi/4, etc.)
-      out = out.replace(/\batan\(1\)/g, 'pi/4')
-               .replace(/\batan\(sqrt\(3\)\)/g, 'pi/3')
-               .replace(/\batan\(1\/sqrt\(3\)\)/g, 'pi/6');
-      out = out.replace(/^\*+/, '').replace(/\*+$/, '').trim();
-      const bad = /^-?\d+\.\d+([eE][+-]?\d+)?$/.test(out) || out.includes('?') || out === expr || out.includes('integrate(');
-      return bad ? null : out;
-    } catch { return null; }
+  function makePlaceholder(isSymbolic) {
+    if (isSymbolic) {
+      const row = document.createElement('div');
+      row.className = 'cas-exact-value cas-symbolic-row cas-loading';
+      row.innerHTML = '<span class="cas-sym-eq">=</span><span class="cas-sym-val">…</span>';
+      return row;
+    }
+    const span = document.createElement('span');
+    span.className = 'cas-exact-value cas-loading';
+    span.textContent = '…';
+    return span;
   }
 
-  function enterExactMode() {
+  function fillPlaceholder(placeholder, result) {
+    placeholder.classList.remove('cas-loading');
+    if (placeholder.classList.contains('cas-symbolic-row')) {
+      const val = placeholder.querySelector('.cas-sym-val');
+      val.textContent = result;
+      val.title = result;
+    } else {
+      placeholder.textContent = result;
+    }
+  }
+
+  async function enterExactMode() {
     const exprs = window.Calc?.getState()?.expressions?.list || [];
     const exprMap = {};
     exprs.forEach(e => { if (e.id) exprMap[e.id] = e; });
 
-    document.querySelectorAll('.dcg-expressionitem.dcg-mathitem').forEach(item => {
+    const items = [...document.querySelectorAll('.dcg-expressionitem.dcg-mathitem')];
+
+    await Promise.all(items.map(async (item) => {
+      if (item.querySelector('.cas-exact-value')) return; // already injected
       const exprId = item.getAttribute('expr-id');
       if (!exprId) return;
-
       const expr = exprMap[exprId];
       if (!expr?.latex) return;
 
-      const result = getCasResult(expr.latex);
-      if (!result) return;
-
       const wrappedVal = item.querySelector('.dcg-evaluation-view__wrapped-value');
       const evalNum = item.querySelector('.dcg-evaluation-number');
+      const isSymbolic = !(wrappedVal && evalNum);
 
-      if (wrappedVal && evalNum) {
-        // Expression has a Desmos numeric result — replace it
+      const placeholder = makePlaceholder(isSymbolic);
+
+      if (!isSymbolic) {
         wrappedVal.style.visibility = 'hidden';
         wrappedVal.style.position = 'absolute';
         hidden.set(exprId, wrappedVal);
-        const span = document.createElement('span');
-        span.className = 'cas-exact-value';
-        span.textContent = result;
-        wrappedVal.parentNode.insertBefore(span, wrappedVal);
+        wrappedVal.parentNode.insertBefore(placeholder, wrappedVal);
       } else {
-        // Symbolic expression with no Desmos value box — append result row
-        const row = document.createElement('div');
-        row.className = 'cas-exact-value cas-symbolic-row';
-        row.innerHTML = '<span class="cas-sym-eq">=</span><span class="cas-sym-val" title="' + result + '">' + result + '</span>';
         const container = item.querySelector('.dcg-fade-container');
-        if (container) container.appendChild(row);
+        if (!container) return;
+        container.appendChild(placeholder);
       }
-    });
-    exactMode = true;
+
+      const { result, loading } = await queryCAS(expr.latex);
+
+      if (!exactMode) {
+        placeholder.remove();
+        if (!isSymbolic && hidden.has(exprId)) {
+          const wv = hidden.get(exprId);
+          wv.style.visibility = '';
+          wv.style.position = '';
+          hidden.delete(exprId);
+        }
+        return;
+      }
+
+      if (!result || loading) {
+        placeholder.remove();
+        if (!isSymbolic && hidden.has(exprId)) {
+          const wv = hidden.get(exprId);
+          wv.style.visibility = '';
+          wv.style.position = '';
+          hidden.delete(exprId);
+        }
+        return;
+      }
+
+      fillPlaceholder(placeholder, result);
+    }));
   }
 
   function exitExactMode() {
@@ -119,8 +113,8 @@
   document.addEventListener('keydown', e => {
     if (e.altKey && e.key === 'e') {
       e.preventDefault();
-      if (exactMode) exitExactMode();
-      else enterExactMode();
+      if (exactMode) { exitExactMode(); }
+      else { exactMode = true; enterExactMode(); }
     }
   });
 })();

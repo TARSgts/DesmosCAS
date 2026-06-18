@@ -1,3 +1,13 @@
+@keyframes cas-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.cas-loading {
+  animation: cas-pulse 1.2s ease-in-out infinite;
+  color: #888 !important;
+}
+
 .cas-exact-value {
   font-family: arial, sans-serif;
   font-size: 15.2px;

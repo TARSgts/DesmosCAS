@@ -1,20 +1,27 @@
 {
   "manifest_version": 3,
   "name": "Desmos CAS",
-  "version": "1.0",
-  "description": "Adds symbolic CAS capabilities to Desmos",
+  "version": "2.0",
+  "description": "Adds symbolic CAS capabilities to Desmos via SymPy",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["offscreen"],
   "content_scripts": [
     {
       "matches": ["*://*.desmos.com/*"],
-      "js": ["loader.js"],
+      "js": ["loader.js", "bridge.js"],
       "css": ["panel.css"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["nerdamer.min.js", "cas.js"],
+      "resources": ["cas.js"],
       "matches": ["*://*.desmos.com/*"]
     }
-  ]
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' https://cdn.jsdelivr.net; object-src 'self'"
+  }
 }
