@@ -84,6 +84,22 @@ def cas_compute(latex_str):
         expr = parse_latex(latex_str)
         # parse_latex yields plain symbols for e and pi — map to the constants
         expr = expr.subs(Symbol('e'), E).subs(Symbol('pi'), pi)
+
+        # Equation solving: a single-variable equation -> solve it.
+        # Multi-variable equations (y = 2x+1) are graphs; leave them to Desmos.
+        if isinstance(expr, Eq):
+            syms = sorted(expr.free_symbols, key=lambda s: s.name)
+            if len(syms) != 1:
+                return None
+            try:
+                sols = solve(expr, syms[0])
+            except Exception:
+                return None
+            if not sols or len(sols) > 8:
+                return None
+            body = ',\\\\ '.join(latex(s) for s in sols)
+            return latex(syms[0]) + ' = ' + body
+
         result = simplify(expr.doit())
         # Prefer a factored form for polynomials, e.g. (x-1)^3, (x-2)(x-3)
         try:
