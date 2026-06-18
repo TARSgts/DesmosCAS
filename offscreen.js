@@ -44,8 +44,16 @@ async function init() {
     store('loading_pyodide');
     const pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/' });
     store('pyodide_loaded');
-    await pyodide.loadPackage(['sympy']);
+    await pyodide.loadPackage(['sympy', 'micropip']);
     store('sympy_loaded');
+    // parse_latex needs antlr4-python3-runtime (not bundled) — install from PyPI
+    const micropip = pyodide.pyimport('micropip');
+    try {
+      await micropip.install('antlr4-python3-runtime==4.11');
+      store('antlr_installed');
+    } catch (e) {
+      store('antlr_install_failed:' + String(e).slice(0, 120));
+    }
     pyodide.runPython(`
 from sympy import *
 from sympy.parsing.latex import parse_latex
@@ -54,6 +62,9 @@ import re as _re
 def cas_compute(latex_str):
     try:
         expr = parse_latex(latex_str)
+    except Exception as ex:
+        return 'PARSE_ERR:' + str(ex)[:120]
+    try:
         e_sym = Symbol('e')
         if e_sym in expr.free_symbols:
             expr = expr.subs(e_sym, E)
@@ -66,8 +77,8 @@ def cas_compute(latex_str):
         if _re.match(r'^-?[0-9]+\.[0-9]+$', s):
             return None
         return s
-    except Exception:
-        return None
+    except Exception as ex:
+        return 'CALC_ERR:' + str(ex)[:120]
 `);
     _compute = (latex) => pyodide.globals.get('cas_compute')(latex);
     ready = true;
