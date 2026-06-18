@@ -1,6 +1,3 @@
-let reqCounter = 0;
-const pending = new Map();
-
 async function ensureOffscreen() {
   const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
   if (contexts.length === 0) {
@@ -14,22 +11,28 @@ async function ensureOffscreen() {
 
 ensureOffscreen();
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender) => {
   if (msg.type === 'cas_query') {
-    const id = reqCounter++;
-    pending.set(id, sendResponse);
+    const tabId = sender.tab?.id;
+    if (!tabId) return;
     ensureOffscreen().then(() => {
-      chrome.runtime.sendMessage({ type: 'cas_offscreen', id, latex: msg.latex })
-        .catch(() => {
-          const cb = pending.get(id);
-          if (cb) { cb({ result: null }); pending.delete(id); }
-        });
+      chrome.runtime.sendMessage({
+        type: 'cas_offscreen',
+        id: msg.id,
+        latex: msg.latex,
+        tabId
+      }).catch(() => {
+        chrome.tabs.sendMessage(tabId, { type: 'cas_result_push', id: msg.id, result: null }).catch(() => {});
+      });
     });
-    return true; // keep channel open for async sendResponse
+    // No return true — fire and forget, result pushed back via cas_offscreen_result
   }
 
   if (msg.type === 'cas_offscreen_result') {
-    const cb = pending.get(msg.id);
-    if (cb) { cb({ result: msg.result || null }); pending.delete(msg.id); }
+    chrome.tabs.sendMessage(msg.tabId, {
+      type: 'cas_result_push',
+      id: msg.id,
+      result: msg.result || null
+    }).catch(() => {});
   }
 });

@@ -34,12 +34,13 @@ def cas_compute(latex_str):
 
   window.addEventListener('message', (e) => {
     if (e.data?.type !== 'cas_offscreen') return;
-    const { id, latex } = e.data;
+    const { id, latex, tabId } = e.data;
     try {
       const result = pyodide.globals.get('cas_compute')(latex);
-      parent.postMessage({ type: 'cas_offscreen_result', id, result: result || null }, '*');
+      // tabId travels back so background knows which tab to push to
+      parent.postMessage({ type: 'cas_offscreen_result', id, tabId, result: result || null }, '*');
     } catch (err) {
-      parent.postMessage({ type: 'cas_offscreen_result', id, result: null }, '*');
+      parent.postMessage({ type: 'cas_offscreen_result', id, tabId, result: null }, '*');
     }
   });
 }
