@@ -17,18 +17,28 @@ window.addEventListener('error', (e) => {
 store('offscreen_js_loaded');
 
 var INF = String.fromCharCode(0x221E); // ∞ — built from code point so no non-ASCII bytes in source
+
+// parse_latex (antlr) can't parse |...| bars, so rewrite them as sqrt((...)^2)
+function preprocess(latex) {
+  let s = latex, prev;
+  do { prev = s; s = s.replace(/\\left\|([^|]*?)\\right\|/g, '\\sqrt{($1)^{2}}'); }
+  while (s !== prev); // repeat for nested bars
+  return s;
+}
+
 function polish(s) {
   if (typeof s !== 'string') return s;
   return s
     .replace(/\bzoo\b/g, INF)   // complex infinity
     .replace(/\boo\b/g, INF)    // infinity (word-bounded, leaves "floor" alone)
-    .replace(/\bE\b/g, 'e');    // Euler's number -> e
+    .replace(/\bE\b/g, 'e')     // Euler's number -> e
+    .replace(/sqrt\(([^()]+)\^2\)/g, '|$1|'); // sqrt(x^2) -> |x| (from abs rewrite)
 }
 
 function compute(msg) {
   const { id, tabId, latex } = msg;
   try {
-    const result = polish(_compute(latex));
+    const result = polish(_compute(preprocess(latex)));
     chrome.runtime.sendMessage({ type: 'cas_offscreen_result', id, tabId, result: result || null }).catch(() => {});
   } catch (e) {
     chrome.runtime.sendMessage({ type: 'cas_offscreen_result', id, tabId, result: null }).catch(() => {});
@@ -74,6 +84,14 @@ def cas_compute(latex_str):
         # parse_latex yields plain symbols for e and pi — map to the constants
         expr = expr.subs(Symbol('e'), E).subs(Symbol('pi'), pi)
         result = simplify(expr.doit())
+        # Prefer a factored form when it's more compact, e.g. (x-1)^3
+        try:
+            if result.free_symbols and result.is_polynomial():
+                fac = factor(result)
+                if len(str(fac)) < len(str(result)):
+                    result = fac
+        except Exception:
+            pass
         # Keep Desmos's own display for bare floats and undefined (0/0 → nan)
         if getattr(result, 'is_Float', False) or result is S.NaN:
             return None
