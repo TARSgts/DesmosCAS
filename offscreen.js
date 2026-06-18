@@ -76,7 +76,14 @@ def cas_compute(latex_str):
             body = ',\\\\ '.join(latex(s) for s in sols)
             return latex(syms[0]) + ' = ' + body
 
-        result = simplify(expr.doit())
+        raw = expr.doit()
+        # simplify() can mangle results (e.g. combine logs into ln of a giant
+        # integer). Keep the evaluated form unless simplify is genuinely shorter.
+        try:
+            simp = simplify(raw)
+            result = simp if len(str(simp)) <= len(str(raw)) else raw
+        except Exception:
+            result = raw
         # Prefer a factored form for polynomials, e.g. (x-1)^3, (x-2)(x-3)
         try:
             if result.free_symbols and result.is_polynomial():
