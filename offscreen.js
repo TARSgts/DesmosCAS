@@ -3,7 +3,9 @@ let ready = false;
 let _compute;
 
 function store(s) {
-  chrome.storage.local.set({ casStatus: s, casStatusTime: Date.now() }).catch(() => {});
+  // Report via runtime message (background persists it) — avoids depending on
+  // chrome.storage being available in the offscreen context
+  try { chrome.runtime.sendMessage({ type: 'cas_status', status: s }).catch(() => {}); } catch (e) {}
 }
 
 // Capture any top-level error from the pyodide scripts loaded after this one

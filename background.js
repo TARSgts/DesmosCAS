@@ -21,6 +21,11 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 ensureOffscreen();
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg.type === 'cas_status') {
+    chrome.storage.local.set({ casStatus: msg.status, casStatusTime: Date.now() });
+    return;
+  }
+
   if (msg.type === 'cas_query') {
     const tabId = sender.tab?.id;
     if (!tabId) return;
