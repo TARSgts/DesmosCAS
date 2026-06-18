@@ -1,5 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head><script src="offscreen.js"></script></head>
-<body><iframe id="sb" src="sandbox.html" style="display:none"></iframe></body>
+<head>
+  <!-- Load locally so pyodide skips dynamic CDN import of pyodide.asm.js -->
+  <script src="pyodide.js"></script>
+  <script src="pyodide.asm.js"></script>
+  <script src="offscreen.js"></script>
+</head>
+<body></body>
 </html>

@@ -7,9 +7,6 @@
     "service_worker": "background.js"
   },
   "permissions": ["offscreen"],
-  "sandbox": {
-    "pages": ["sandbox.html"]
-  },
   "content_scripts": [
     {
       "matches": ["*://*.desmos.com/*"],
