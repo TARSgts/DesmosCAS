@@ -1,35 +1,21 @@
-let pyodideReady = false;
-const pending = new Map(); // reqId -> sendResponse
 let reqCounter = 0;
+const pending = new Map();
 
 async function ensureOffscreen() {
-  const contexts = await chrome.runtime.getContexts({
-    contextTypes: ['OFFSCREEN_DOCUMENT']
-  });
+  const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
   if (contexts.length === 0) {
-    pyodideReady = false;
     await chrome.offscreen.createDocument({
       url: chrome.runtime.getURL('offscreen.html'),
       reasons: ['WORKERS'],
-      justification: 'Run SymPy CAS computations via Pyodide WebAssembly'
+      justification: 'Run SymPy CAS via Pyodide WebAssembly'
     });
   }
 }
 
-// Start loading immediately on install/startup
 ensureOffscreen();
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === 'cas_status') {
-    if (msg.status === 'ready') pyodideReady = true;
-    return;
-  }
-
   if (msg.type === 'cas_query') {
-    if (!pyodideReady) {
-      sendResponse({ loading: true });
-      return true;
-    }
     const id = reqCounter++;
     pending.set(id, sendResponse);
     ensureOffscreen().then(() => {
