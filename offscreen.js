@@ -76,7 +76,21 @@ def cas_compute(latex_str):
             body = ',\\\\ '.join(latex(s) for s in sols)
             return latex(syms[0]) + ' = ' + body
 
-        raw = expr.doit()
+        # For integrals, prefer SymPy's "manual" technique: it gives clean,
+        # textbook-style antiderivatives instead of Piecewise/complex blowups.
+        raw = None
+        if expr.has(Integral):
+            try:
+                m = expr.doit(manual=True)
+                if not m.has(Integral, Piecewise, I):
+                    raw = m
+            except Exception:
+                pass
+        if raw is None:
+            raw = expr.doit()
+        # If a Piecewise slipped through, take its principal (first) branch.
+        if isinstance(raw, Piecewise) and len(raw.args):
+            raw = raw.args[0].expr
         # simplify() can mangle results (e.g. combine logs into ln of a giant
         # integer). Keep the evaluated form unless simplify is genuinely shorter.
         try:
