@@ -2,20 +2,6 @@ const queue = [];
 let ready = false;
 let _compute;
 
-function store(s) {
-  // Report via runtime message (background persists it) — avoids depending on
-  // chrome.storage being available in the offscreen context
-  try { chrome.runtime.sendMessage({ type: 'cas_status', status: s }).catch(() => {}); } catch (e) {}
-}
-
-// Capture any top-level error from the pyodide scripts loaded after this one
-window.addEventListener('error', (e) => {
-  store('SCRIPT_ERROR:' + (e.message || '').slice(0, 180) + ' @ ' + (e.filename || '').split('/').pop());
-});
-
-// Confirm offscreen.js executed
-store('offscreen_js_loaded');
-
 // parse_latex (antlr) can't parse |...| bars, so rewrite them as sqrt((...)^2)
 function preprocess(latex) {
   let s = latex, prev;
@@ -53,32 +39,21 @@ chrome.runtime.onMessage.addListener((msg) => {
   compute(msg);
 });
 
-// Defer init until ALL scripts (pyodide.js, pyodide.asm.js) have loaded
-window.addEventListener('load', () => {
-  store('window_loaded:loadPyodide=' + typeof loadPyodide + ',createModule=' + typeof _createPyodideModule);
-  init();
-});
+// Defer init until ALL scripts (pyodide.js, pyodide.asm.js) have loaded.
+window.addEventListener('load', init);
 
 async function init() {
   try {
-    if (typeof loadPyodide !== 'function') { store('ERROR:loadPyodide_undefined'); return; }
-    store('loading_pyodide');
     const pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/' });
-    store('pyodide_loaded');
     await pyodide.loadPackage(['sympy', 'micropip']);
-    store('sympy_loaded');
     // parse_latex needs antlr4-python3-runtime (not bundled) — install from PyPI
     const micropip = pyodide.pyimport('micropip');
-    try {
-      await micropip.install('antlr4-python3-runtime==4.11');
-      store('antlr_installed');
-    } catch (e) {
-      store('antlr_install_failed:' + String(e).slice(0, 120));
-    }
+    try { await micropip.install('antlr4-python3-runtime==4.11'); } catch (e) {}
     pyodide.runPython(`
+import warnings
+warnings.filterwarnings('ignore')  # silence the antlr ErrorListener notice
 from sympy import *
 from sympy.parsing.latex import parse_latex
-import re as _re
 
 def cas_compute(latex_str):
     try:
@@ -110,10 +85,10 @@ def cas_compute(latex_str):
                     result = fac
         except Exception:
             pass
-        # Keep Desmos's own display for bare floats and undefined (0/0 → nan)
+        # Keep Desmos's own display for bare floats and undefined (0/0 -> nan)
         if getattr(result, 'is_Float', False) or result is S.NaN:
             return None
-        # Hide unevaluated integrals/derivatives — let Desmos show its own value
+        # Hide unevaluated integrals/derivatives -- let Desmos show its own value
         if result.has(Integral) or result.has(Derivative):
             return None
         return latex(result)  # rendered as real math by KaTeX in the page
@@ -121,15 +96,10 @@ def cas_compute(latex_str):
         return None
 `);
     _compute = (latex) => pyodide.globals.get('cas_compute')(latex);
-    ready = true;
-    store('READY');
-    for (const m of queue) compute(m);
-    queue.length = 0;
   } catch (e) {
-    store('INIT_ERROR:' + (e && e.message ? e.message : String(e)).slice(0, 180));
-    ready = true;
-    _compute = () => null;
-    for (const m of queue) compute(m);
-    queue.length = 0;
+    _compute = () => null; // Pyodide failed to load — fail gracefully (queries get null)
   }
+  ready = true;
+  for (const m of queue) compute(m);
+  queue.length = 0;
 }
