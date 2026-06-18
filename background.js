@@ -1,25 +1,25 @@
-let lastStatus = 'no_offscreen';
-
 async function ensureOffscreen() {
-  try {
+  const existing = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
+  if (existing.length === 0) {
     await chrome.offscreen.createDocument({
       url: chrome.runtime.getURL('offscreen.html'),
       reasons: ['WORKERS'],
       justification: 'Run SymPy CAS via Pyodide'
     });
-  } catch (e) {
-    // Already exists — ignore
   }
 }
 
+// On install/reload: tear down any stale offscreen and start fresh
+chrome.runtime.onInstalled.addListener(async () => {
+  try { await chrome.offscreen.closeDocument(); } catch (e) {}
+  await chrome.storage.local.remove(['casStatus', 'casStatusTime']);
+  ensureOffscreen();
+});
+
+// On service-worker startup, make sure an offscreen exists
 ensureOffscreen();
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
-  if (msg.type === 'cas_status') {
-    lastStatus = msg.status;
-    return;
-  }
-
   if (msg.type === 'cas_query') {
     const tabId = sender.tab?.id;
     if (!tabId) return;
@@ -39,7 +39,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
       const age = store.casStatusTime ? Math.round((Date.now() - store.casStatusTime) / 1000) + 's ago' : 'never';
       if (tabId) chrome.tabs.sendMessage(tabId, {
         type: 'cas_status_push',
-        status: 'offscreenDocs=' + ctx.length + ' | storedStatus=' + (store.casStatus || 'none') + ' (' + age + ')'
+        status: 'offscreenDocs=' + ctx.length + ' | ' + (store.casStatus || 'none') + ' (' + age + ')'
       }).catch(() => {});
     });
     return true;
