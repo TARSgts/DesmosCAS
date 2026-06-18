@@ -69,6 +69,7 @@ def cas_compute(latex_str):
         if getattr(result, 'is_Float', False):
             return None
         s = str(result).replace('**', '^').replace('exp(', 'e^(')
+        s = s.replace('zoo', '∞').replace('oo', '∞')  # SymPy infinity → ∞
         if 'Integral(' in s or 'Derivative(' in s:
             return None
         return s

@@ -23,6 +23,7 @@ Press **Alt+E** while on Desmos to toggle exact answers. The decimal approximati
 - **Simplification** — `(x²-1)/(x-1)` → `x+1`
 - **Factoring** — `x³-3x²+3x-1` → `(x-1)³`
 - **Radicals** — `√50` → `5√2`
+- **Series & products** — `∑ 1/n²` → `π²/6`, `∑_{k=1}^n k` → `n(n+1)/2`
 - **Trig, log, and more**
 
 ## Installation
