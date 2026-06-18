@@ -2,22 +2,38 @@
   let exactMode = false;
   const hidden = new Map(); // exprId -> wrapped-value element
   let observer = null;
+  let sweepTimer = null;
 
-  function queryCAS(latex) {
+  // Query the CAS, resending periodically until an answer arrives. The MV3
+  // service worker / offscreen document can be asleep (and may need to reload
+  // Pyodide), so a single fire-and-forget message can be dropped or arrive very
+  // late. Resending tolerates that. shouldContinue() lets us abort if the user
+  // toggles exact mode off mid-flight.
+  function queryCAS(latex, shouldContinue) {
     return new Promise((resolve) => {
-      const id = Math.random().toString(36).slice(2);
-      const timer = setTimeout(() => {
-        window.removeEventListener('message', handler);
-        resolve({ result: null });
-      }, 60000);
+      const sent = new Set();
+      let attempts = 0, settled = false, timer = null;
+      function cleanup() { window.removeEventListener('message', handler); clearTimeout(timer); }
       function handler(e) {
-        if (e.source !== window || e.data?.type !== 'cas_result' || e.data.id !== id) return;
-        clearTimeout(timer);
-        window.removeEventListener('message', handler);
-        resolve(e.data);
+        if (e.source !== window || e.data?.type !== 'cas_result' || !sent.has(e.data.id)) return;
+        if (settled) return;
+        settled = true; cleanup(); resolve(e.data);
       }
       window.addEventListener('message', handler);
-      window.postMessage({ type: 'cas_query', id, latex }, '*');
+      function send() {
+        if (settled) return;
+        if (shouldContinue && !shouldContinue()) { settled = true; cleanup(); resolve({ result: null }); return; }
+        attempts++;
+        const id = 'q' + Math.random().toString(36).slice(2);
+        sent.add(id);
+        window.postMessage({ type: 'cas_query', id, latex }, '*');
+        if (attempts < 6) {
+          timer = setTimeout(send, 9000); // ~54s of retries (covers a Pyodide reload)
+        } else {
+          timer = setTimeout(() => { if (!settled) { settled = true; cleanup(); resolve({ result: null }); } }, 12000);
+        }
+      }
+      send();
     });
   }
 
@@ -55,7 +71,7 @@
   }
 
   async function injectItem(item, exprMap) {
-    if (item.querySelector('.cas-exact-value')) return; // already injected
+    if (item.querySelector('.cas-exact-value')) return; // already injected or in-flight
     const exprId = item.getAttribute('expr-id');
     if (!exprId) return;
     const expr = exprMap[exprId];
@@ -78,9 +94,11 @@
       container.appendChild(placeholder);
     }
 
-    const { result, loading } = await queryCAS(expr.latex);
+    const { result } = await queryCAS(expr.latex, () => exactMode);
 
-    if (!exactMode || !result || loading) {
+    // Bail if mode was toggled off, no exact form was found, or the placeholder
+    // got detached (Desmos recycled the row mid-query — a re-sweep will redo it).
+    if (!exactMode || !result || !placeholder.isConnected) {
       placeholder.remove();
       if (!isSymbolic) restore(exprId);
       return;
@@ -108,11 +126,15 @@
     const panel = document.querySelector('.dcg-expressionlist') || document.body;
     observer = new MutationObserver(() => { if (exactMode) injectAllVisible(); });
     observer.observe(panel, { childList: true, subtree: true });
+    // Safety net: periodically re-scan so any row that failed to load (dropped
+    // message, recycled node) gets another shot.
+    sweepTimer = setInterval(() => { if (exactMode) injectAllVisible(); }, 5000);
   }
 
   function exitExactMode() {
     exactMode = false;
     if (observer) { observer.disconnect(); observer = null; }
+    if (sweepTimer) { clearInterval(sweepTimer); sweepTimer = null; }
     document.querySelectorAll('.cas-exact-value').forEach(el => el.remove());
     hidden.forEach(el => { el.style.visibility = ''; el.style.position = ''; });
     hidden.clear();
