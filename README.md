@@ -4,7 +4,7 @@ A Chrome extension that adds exact symbolic answers to [Desmos Graphing Calculat
 
 ## What it does
 
-Press **Alt+E** while on Desmos to toggle exact answers. The decimal approximations shown next to each expression are replaced with their exact symbolic forms — fractions, radicals, and symbolic constants. Press **Alt+E** again to restore the decimals.
+Press **Alt+E** while on Desmos to toggle exact answers. The decimal approximations shown next to each expression are replaced with their exact symbolic forms — fractions, radicals, and symbolic constants — **rendered as real math notation** (stacked fractions, radical signs, exponents) via KaTeX. Press **Alt+E** again to restore the decimals.
 
 ### Examples
 
@@ -48,3 +48,4 @@ Press **Alt+E** while on Desmos to toggle exact answers. The decimal approximati
 - [Pyodide](https://pyodide.org/) v0.26.2 — `pyodide.js` + `pyodide.asm.js` bundled; WASM and packages fetched from CDN on first run
 - [SymPy](https://www.sympy.org/) — loaded as a Pyodide package
 - `antlr4-python3-runtime` — installed via micropip for `parse_latex`
+- [KaTeX](https://katex.org/) v0.16.11 — bundled (`katex.min.js`, `katex.min.css`, `fonts/`) for rendering answers as math
