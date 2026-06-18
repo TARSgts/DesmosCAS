@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!-- Load locally so pyodide skips dynamic CDN import of pyodide.asm.js -->
+  <!-- offscreen.js FIRST so it runs and reports even if a pyodide script throws -->
+  <script src="offscreen.js"></script>
   <script src="pyodide.js"></script>
   <script src="pyodide.asm.js"></script>
-  <script src="offscreen.js"></script>
 </head>
 <body></body>
 </html>

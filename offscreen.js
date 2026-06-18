@@ -1,28 +1,18 @@
 const queue = [];
 let ready = false;
 let _compute;
-let _status = 'starting';
 
-// Catch any top-level error (e.g. pyodide.asm.js eval failure)
-window.addEventListener('error', (e) => {
-  chrome.storage.local.set({ casStatus: 'WINDOW_ERROR:' + (e.message || '').slice(0, 200), casStatusTime: Date.now() }).catch(() => {});
-});
-// Confirm offscreen.js itself executed
-chrome.storage.local.set({ casStatus: 'offscreen_js_running:loadPyodide=' + typeof loadPyodide + ',createModule=' + typeof _createPyodideModule, casStatusTime: Date.now() }).catch(() => {});
-
-function report(stage, extra) {
-  _status = stage + (extra ? ':' + extra : '');
-  // Persist to storage so it survives service-worker restarts
-  chrome.storage.local.set({ casStatus: _status, casStatusTime: Date.now() }).catch(() => {});
-  chrome.runtime.sendMessage({ type: 'cas_status', status: _status }).catch(() => {});
+function store(s) {
+  chrome.storage.local.set({ casStatus: s, casStatusTime: Date.now() }).catch(() => {});
 }
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === 'cas_status_query') { sendResponse({ status: _status }); return; }
-  if (msg.type !== 'cas_offscreen') return;
-  if (!ready) { queue.push(msg); return; }
-  compute(msg);
+// Capture any top-level error from the pyodide scripts loaded after this one
+window.addEventListener('error', (e) => {
+  store('SCRIPT_ERROR:' + (e.message || '').slice(0, 180) + ' @ ' + (e.filename || '').split('/').pop());
 });
+
+// Confirm offscreen.js executed
+store('offscreen_js_loaded');
 
 function compute(msg) {
   const { id, tabId, latex } = msg;
@@ -34,14 +24,26 @@ function compute(msg) {
   }
 }
 
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type !== 'cas_offscreen') return;
+  if (!ready) { queue.push(msg); return; }
+  compute(msg);
+});
+
+// Defer init until ALL scripts (pyodide.js, pyodide.asm.js) have loaded
+window.addEventListener('load', () => {
+  store('window_loaded:loadPyodide=' + typeof loadPyodide + ',createModule=' + typeof _createPyodideModule);
+  init();
+});
+
 async function init() {
   try {
-    report('checking_globals', 'loadPyodide=' + typeof loadPyodide + ',createModule=' + typeof _createPyodideModule);
-    report('loading_pyodide');
+    if (typeof loadPyodide !== 'function') { store('ERROR:loadPyodide_undefined'); return; }
+    store('loading_pyodide');
     const pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/' });
-    report('pyodide_loaded');
+    store('pyodide_loaded');
     await pyodide.loadPackage(['sympy']);
-    report('sympy_loaded');
+    store('sympy_loaded');
     pyodide.runPython(`
 from sympy import *
 from sympy.parsing.latex import parse_latex
@@ -67,16 +69,14 @@ def cas_compute(latex_str):
 `);
     _compute = (latex) => pyodide.globals.get('cas_compute')(latex);
     ready = true;
-    report('ready');
-    for (const msg of queue) compute(msg);
+    store('READY');
+    for (const m of queue) compute(m);
     queue.length = 0;
   } catch (e) {
-    report('ERROR', (e && e.message ? e.message : String(e)).slice(0, 200));
+    store('INIT_ERROR:' + (e && e.message ? e.message : String(e)).slice(0, 180));
     ready = true;
     _compute = () => null;
-    for (const msg of queue) compute(msg);
+    for (const m of queue) compute(m);
     queue.length = 0;
   }
 }
-
-init();
