@@ -1,14 +1,19 @@
 const queue = [];
 let ready = false;
+let _compute;
+let _status = 'starting';
 
-// Queue messages that arrive before Pyodide finishes loading
-chrome.runtime.onMessage.addListener((msg) => {
+function report(stage, extra) {
+  _status = stage + (extra ? ':' + extra : '');
+  chrome.runtime.sendMessage({ type: 'cas_status', status: _status }).catch(() => {});
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'cas_status_query') { sendResponse({ status: _status }); return; }
   if (msg.type !== 'cas_offscreen') return;
   if (!ready) { queue.push(msg); return; }
   compute(msg);
 });
-
-let _compute;
 
 function compute(msg) {
   const { id, tabId, latex } = msg;
@@ -22,8 +27,12 @@ function compute(msg) {
 
 async function init() {
   try {
+    report('checking_globals', 'loadPyodide=' + typeof loadPyodide + ',createModule=' + typeof _createPyodideModule);
+    report('loading_pyodide');
     const pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/' });
+    report('pyodide_loaded');
     await pyodide.loadPackage(['sympy']);
+    report('sympy_loaded');
     pyodide.runPython(`
 from sympy import *
 from sympy.parsing.latex import parse_latex
@@ -49,11 +58,11 @@ def cas_compute(latex_str):
 `);
     _compute = (latex) => pyodide.globals.get('cas_compute')(latex);
     ready = true;
-    // Drain queue
+    report('ready');
     for (const msg of queue) compute(msg);
     queue.length = 0;
   } catch (e) {
-    // Pyodide failed — drain queue with null results
+    report('ERROR', (e && e.message ? e.message : String(e)).slice(0, 200));
     ready = true;
     _compute = () => null;
     for (const msg of queue) compute(msg);

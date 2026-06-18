@@ -1,3 +1,5 @@
+let lastStatus = 'no_offscreen';
+
 async function ensureOffscreen() {
   try {
     await chrome.offscreen.createDocument({
@@ -13,6 +15,11 @@ async function ensureOffscreen() {
 ensureOffscreen();
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg.type === 'cas_status') {
+    lastStatus = msg.status;
+    return;
+  }
+
   if (msg.type === 'cas_query') {
     const tabId = sender.tab?.id;
     if (!tabId) return;
@@ -21,6 +28,11 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
         chrome.tabs.sendMessage(tabId, { type: 'cas_result_push', id: msg.id, result: null }).catch(() => {});
       });
     });
+  }
+
+  if (msg.type === 'cas_status_relay') {
+    const tabId = sender.tab?.id;
+    if (tabId) chrome.tabs.sendMessage(tabId, { type: 'cas_status_push', status: lastStatus }).catch(() => {});
   }
 
   if (msg.type === 'cas_offscreen_result') {
